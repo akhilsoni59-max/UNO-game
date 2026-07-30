@@ -77,6 +77,41 @@ export class SupabasePersistence {
   async persistRoom(room) {
     const game = room.game;
     const status = game?.status || "lobby";
+
+    if (game && room.matchId) {
+      const winner = game.players.find((player) => player.id === game.winnerId);
+      const matchResult = await this.client.from("matches").upsert(
+        {
+          id: room.matchId,
+          room_code: room.code,
+          status: game.status,
+          rules: game.rules,
+          player_count: game.players.length,
+          winner_name: winner?.name || null,
+          action_count: game.actionLog?.length || 0,
+          started_at: iso(room.matchStartedAt || room.createdAt),
+          finished_at: game.status === "finished" ? iso(game.finishedAt) : null,
+        },
+        { onConflict: "id" }
+      );
+      ensureOk(matchResult, "match upsert");
+
+      const ranking = new Map((game.ranking || []).map((id, index) => [id, index + 1]));
+      const playerRows = game.players.map((player, seat) => ({
+        match_id: room.matchId,
+        seat,
+        display_name: player.name,
+        is_bot: !!room.players.find((entry) => entry.id === player.id)?.isBot,
+        final_rank: ranking.get(player.id) || null,
+        cards_remaining: player.hand.length,
+      }));
+      const playersResult = await this.client
+        .from("match_players")
+        .upsert(playerRows, { onConflict: "match_id,seat" });
+      ensureOk(playersResult, "match players upsert");
+    }
+
+    // active_rooms.match_id references matches.id, so the match must exist first.
     const roomResult = await this.client.from("active_rooms").upsert(
       {
         room_code: room.code,
@@ -91,38 +126,6 @@ export class SupabasePersistence {
       { onConflict: "room_code" }
     );
     ensureOk(roomResult, "active room upsert");
-
-    if (!game || !room.matchId) return;
-    const winner = game.players.find((player) => player.id === game.winnerId);
-    const matchResult = await this.client.from("matches").upsert(
-      {
-        id: room.matchId,
-        room_code: room.code,
-        status: game.status,
-        rules: game.rules,
-        player_count: game.players.length,
-        winner_name: winner?.name || null,
-        action_count: game.actionLog?.length || 0,
-        started_at: iso(room.matchStartedAt || room.createdAt),
-        finished_at: game.status === "finished" ? iso(game.finishedAt) : null,
-      },
-      { onConflict: "id" }
-    );
-    ensureOk(matchResult, "match upsert");
-
-    const ranking = new Map((game.ranking || []).map((id, index) => [id, index + 1]));
-    const playerRows = game.players.map((player, seat) => ({
-      match_id: room.matchId,
-      seat,
-      display_name: player.name,
-      is_bot: !!room.players.find((entry) => entry.id === player.id)?.isBot,
-      final_rank: ranking.get(player.id) || null,
-      cards_remaining: player.hand.length,
-    }));
-    const playersResult = await this.client
-      .from("match_players")
-      .upsert(playerRows, { onConflict: "match_id,seat" });
-    ensureOk(playersResult, "match players upsert");
   }
 
   async removeRoom(code) {
