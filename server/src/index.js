@@ -41,9 +41,9 @@ function emitRoom(room) {
 io.on("connection", (socket) => {
   let joinedCode = null;
 
-  socket.on("create_room", ({ name }, cb) => {
+  socket.on("create_room", ({ name, token }, cb) => {
     try {
-      const room = rooms.createRoom(socket.id, name);
+      const room = rooms.createRoom(socket.id, name, token);
       joinedCode = room.code;
       socket.join(room.code);
       emitRoom(room);
@@ -53,9 +53,9 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("join_room", ({ code, name }, cb) => {
+  socket.on("join_room", ({ code, name, token }, cb) => {
     try {
-      const result = rooms.joinRoom(code, socket.id, name);
+      const result = rooms.joinRoom(code, socket.id, name, token);
       if (!result.ok) {
         cb?.(result);
         return;
@@ -63,9 +63,26 @@ io.on("connection", (socket) => {
       joinedCode = result.room.code;
       socket.join(result.room.code);
       emitRoom(result.room);
-      cb?.({ ok: true, code: result.room.code });
+      cb?.({ ok: true, code: result.room.code, reconnected: !!result.reconnected });
     } catch (e) {
       cb?.({ ok: false, error: e.message || "Failed to join" });
+    }
+  });
+
+  socket.on("leave_room", (cb) => {
+    try {
+      if (!joinedCode) {
+        cb?.({ ok: true });
+        return;
+      }
+      const code = joinedCode;
+      socket.leave(code);
+      const left = rooms.leaveRoom(socket.id, { hard: true });
+      joinedCode = null;
+      if (left?.room) emitRoom(left.room);
+      cb?.({ ok: true });
+    } catch (e) {
+      cb?.({ ok: false, error: e.message || "Failed to leave" });
     }
   });
 
@@ -130,12 +147,17 @@ io.on("connection", (socket) => {
     if (!joinedCode) return cb?.({ ok: false, error: "Not in a room" });
     const result = rooms.rematch(joinedCode, socket.id);
     if (!result.ok) return cb?.(result);
+    if (result.deleted || !result.room) {
+      joinedCode = null;
+      cb?.({ ok: true, deleted: true });
+      return;
+    }
     emitRoom(result.room);
     cb?.({ ok: true });
   });
 
   socket.on("disconnect", () => {
-    const left = rooms.leaveRoom(socket.id);
+    const left = rooms.leaveRoom(socket.id, { hard: false });
     if (left?.room) emitRoom(left.room);
   });
 });

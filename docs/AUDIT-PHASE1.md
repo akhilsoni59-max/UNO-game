@@ -1,0 +1,55 @@
+# Phase 1 — Audit: ChromaCards rendering architecture
+
+## Stack (current)
+
+| Layer | Tech |
+|-------|------|
+| Client | React 19 + TypeScript + Vite 6 |
+| Routing | react-router-dom |
+| Motion | Framer Motion (layout/enter/exit only) |
+| Multiplayer | Socket.IO client → Express + Socket.IO server |
+| State | Server-authoritative; client holds last `state` snapshot |
+| Cards | Raster PNGs (`/assets/cards/*.png`) via `<img>` |
+| Table UI | CSS grid/flex DOM in `GameTable.tsx` |
+| Sound | **None** |
+
+## Key files
+
+- **Rules:** `server/src/game.js`
+- **Rooms / reconnect:** `server/src/rooms.js`, `server/src/index.js`
+- **Table UI:** `client/src/components/GameTable.tsx`
+- **Cards:** `client/src/components/CardView.tsx` + PNGs
+- **Lobby/Home:** `Home.tsx`, `Lobby.tsx`, `Room.tsx`
+- **Styles:** `styles/global.css`, `styles/card.css`
+
+## Why cards & animation feel basic
+
+1. **Flat raster cards** — single PNG, no layered edge/highlight/corner values/action icons system.
+2. **No transfer animation** — play removes card from hand and top discard swaps; no flight from hand → discard.
+3. **No draw flight** — draw instantly adds to hand; deck never “gives” a card.
+4. **No animation queue** — scattered `setTimeout` toasts; race with server state.
+5. **Opponents in a flex row** — not six seats around a table; no seat-facing geometry.
+6. **Hand “fan”** is CSS rotate only — no arc, overlap algorithm, hover lift separation, or reflow.
+7. **Glow-as-playability** — heavy drop-shadows, not controlled edge treatment.
+8. **Photo felt + glass pills** — stock-texture dashboard feel rather than designed tabletop.
+9. **No sound, particles, direction motion, or skip/reverse VFX.**
+10. **Framer Motion on every hand card** — re-render-driven; not a dedicated transfer layer.
+
+## Architecture decision
+
+**Keep:** Socket.IO multiplayer, server rules, lobby/home, identity/reconnect.
+
+**Replace presentation of active table with a dedicated game layer:**
+
+- Design tokens (`gameTokens` / `animationTokens`)
+- `TableLayoutEngine` (normalized seats, scale)
+- SVG `CardFace` / `CardBack` (original identity)
+- `AnimationOrchestrator` + `CardTransferLayer` (rAF Bézier flights)
+- `SoundManager` (Web Audio, synthesized SFX)
+- Six-seat `PremiumGameTable`
+
+**Not using PixiJS v8 initially** — full engine swap would risk multiplayer stability and asset pipeline mid-rebuild. Same principles (logical coords, transfer sprites, queue, tokens) via React + absolute transfer canvas + SVG. Pixi can replace the transfer layer later without touching rules.
+
+## Implementation order
+
+Phases 2–8 as specified in the product brief.

@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { socket } from "../socket";
-import { CardView } from "./CardView";
+import { CardView } from "../game/cards/Card";
+import { getPlayerToken, getSavedName, rememberRoom, saveName as persistName } from "../identity";
 import type { Card } from "../types";
+import { cssVarsFromTokens } from "../game/tokens/gameTokens";
 
 const showcase: Card[] = [
   { id: "s1", color: "red", type: "number", value: 7 },
@@ -15,14 +17,14 @@ const showcase: Card[] = [
 
 export function Home() {
   const nav = useNavigate();
-  const [name, setName] = useState(() => localStorage.getItem("cc_name") || "");
+  const [name, setName] = useState(() => getSavedName());
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   function saveName(n: string) {
     setName(n);
-    localStorage.setItem("cc_name", n);
+    persistName(n);
   }
 
   function createRoom() {
@@ -32,14 +34,20 @@ export function Home() {
     }
     setBusy(true);
     setError("");
-    socket.emit("create_room", { name: name.trim() }, (res: { ok: boolean; code?: string; error?: string }) => {
-      setBusy(false);
-      if (!res?.ok) {
-        setError(res?.error || "Could not create room");
-        return;
+    const token = getPlayerToken();
+    socket.emit(
+      "create_room",
+      { name: name.trim(), token },
+      (res: { ok: boolean; code?: string; error?: string }) => {
+        setBusy(false);
+        if (!res?.ok) {
+          setError(res?.error || "Could not create room");
+          return;
+        }
+        rememberRoom(res.code || null);
+        nav(`/room/${res.code}`);
       }
-      nav(`/room/${res.code}`);
-    });
+    );
   }
 
   function joinRoom() {
@@ -54,18 +62,24 @@ export function Home() {
     }
     setBusy(true);
     setError("");
-    socket.emit("join_room", { code: c, name: name.trim() }, (res: { ok: boolean; code?: string; error?: string }) => {
-      setBusy(false);
-      if (!res?.ok) {
-        setError(res?.error || "Could not join room");
-        return;
+    const token = getPlayerToken();
+    socket.emit(
+      "join_room",
+      { code: c, name: name.trim(), token },
+      (res: { ok: boolean; code?: string; error?: string }) => {
+        setBusy(false);
+        if (!res?.ok) {
+          setError(res?.error || "Could not join room");
+          return;
+        }
+        rememberRoom(res.code || c);
+        nav(`/room/${res.code || c}`);
       }
-      nav(`/room/${res.code}`);
-    });
+    );
   }
 
   return (
-    <div className="home">
+    <div className="home game-tokens" style={cssVarsFromTokens() as CSSProperties}>
       <div className="home-showcase" aria-hidden>
         {showcase.map((card, i) => (
           <div

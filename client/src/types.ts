@@ -24,6 +24,7 @@ export interface GamePlayer {
   eliminated: boolean;
   isTurn: boolean;
   isYou: boolean;
+  connected?: boolean;
 }
 
 export interface LobbyState {
@@ -45,7 +46,16 @@ export interface GameState {
   pendingDraw: number;
   winnerId: string | null;
   ranking: string[];
-  lastAction: { type: string; message?: string; playerId?: string; card?: Card } | null;
+  lastAction: {
+    id?: string;
+    type: string;
+    message?: string;
+    playerId?: string;
+    targetId?: string;
+    card?: Card;
+    color?: string;
+    count?: number;
+  } | null;
   topCard: Card | null;
   discardCount: number;
   deckCount: number;

@@ -80,11 +80,10 @@ button:disabled {
   justify-content: center;
   gap: 28px;
   padding: 28px 20px 48px;
-  background-image:
-    linear-gradient(180deg, rgba(5, 16, 12, 0.55), rgba(5, 16, 12, 0.82)),
-    url("/assets/table.jpg");
-  background-size: cover;
-  background-position: center;
+  background:
+    radial-gradient(ellipse 70% 50% at 50% 30%, rgba(26, 42, 66, 0.55), transparent 60%),
+    radial-gradient(ellipse 100% 80% at 50% 100%, rgba(0, 0, 0, 0.55), transparent 50%),
+    linear-gradient(180deg, #0c1220, #070b12);
 }
 
 .home-showcase {
@@ -383,6 +382,11 @@ button:disabled {
   background: rgba(240, 193, 75, 0.08);
 }
 
+.player-chip.disconnected {
+  opacity: 0.55;
+  border-style: dashed;
+}
+
 .player-chip .name {
   font-weight: 700;
 }
@@ -396,6 +400,7 @@ button:disabled {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+  align-items: center;
 }
 
 /* ===== TABLE ===== */
@@ -526,6 +531,12 @@ button:disabled {
     0 0 28px rgba(255, 200, 40, 0.28),
     0 8px 20px rgba(0, 0, 0, 0.3);
   transform: translateY(-3px);
+}
+
+.opponent.offline {
+  opacity: 0.5;
+  border-style: dashed;
+  filter: grayscale(0.4);
 }
 
 .opponent .oname {

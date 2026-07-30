@@ -1,20 +1,27 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import type { Card, Color, GameState } from "../types";
 import { socket } from "../socket";
+import { rememberRoom } from "../identity";
 import { CardView, DrawPile } from "./CardView";
+
+function isWildType(card: Card) {
+  return card.type === "wild" || card.type === "wild4";
+}
 
 function canPlayLocal(card: Card, top: Card | null, currentColor: Color, isTurn: boolean, pendingDraw: number) {
   if (!isTurn || pendingDraw > 0) return false;
   if (!top) return true;
-  if (card.type === "wild" || card.type === "wild4") return true;
+  if (isWildType(card)) return true;
   if (card.color === currentColor) return true;
   if (card.type === "number" && top.type === "number" && card.value === top.value) return true;
-  if (card.type !== "number" && card.type !== "wild" && card.type !== "wild4" && card.type === top.type) return true;
+  if (card.type !== "number" && card.type === top.type) return true;
   return false;
 }
 
 export function GameTable({ state }: { state: GameState }) {
+  const nav = useNavigate();
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [oneFlash, setOneFlash] = useState(false);
@@ -107,6 +114,13 @@ export function GameTable({ state }: { state: GameState }) {
     socket.emit("rematch", () => {});
   }
 
+  function leave() {
+    socket.emit("leave_room", () => {
+      rememberRoom(null);
+      nav("/");
+    });
+  }
+
   const showOneBtn = you && you.hand.length === 1 && !you.saidOne;
   const canDraw = you?.isTurn && (state.pendingDraw > 0 || !state.turnDrawTaken);
   const canPass = you?.isTurn && state.turnDrawTaken && state.pendingDraw === 0;
@@ -126,7 +140,12 @@ export function GameTable({ state }: { state: GameState }) {
             </span>
           )}
         </div>
-        <span className="pill">Deck {state.deckCount}</span>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <span className="pill">Deck {state.deckCount}</span>
+          <button className="btn btn-ghost" type="button" style={{ padding: "6px 12px", fontSize: "0.8rem" }} onClick={leave}>
+            Leave
+          </button>
+        </div>
       </div>
 
       <div className="felt">
@@ -145,8 +164,11 @@ export function GameTable({ state }: { state: GameState }) {
 
         <div className="opponents">
           {opponents.map((p) => (
-            <div key={p.id} className={`opponent ${p.isTurn ? "active" : ""}`}>
-              <div className="oname">{p.name}</div>
+            <div key={p.id} className={`opponent ${p.isTurn ? "active" : ""} ${p.connected === false ? "offline" : ""}`}>
+              <div className="oname">
+                {p.name}
+                {p.connected === false ? " (offline)" : ""}
+              </div>
               <div className="ocount">
                 {p.cardCount} card{p.cardCount === 1 ? "" : "s"}
                 {p.saidOne ? " · ONE!" : ""}

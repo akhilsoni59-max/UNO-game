@@ -2,7 +2,7 @@
 
 export const COLORS = ["red", "yellow", "green", "blue"];
 export const MAX_PLAYERS = 6;
-export const MIN_PLAYERS = 1;
+export const MIN_PLAYERS = 2;
 export const HAND_SIZE = 7;
 
 /**
@@ -12,9 +12,14 @@ export const HAND_SIZE = 7;
  */
 
 let cardSeq = 0;
+let actionSeq = 0;
 function nextId() {
   cardSeq += 1;
   return `c${cardSeq}`;
+}
+function nextActionId() {
+  actionSeq += 1;
+  return `a${actionSeq}_${Date.now().toString(36)}`;
 }
 
 export function createDeck() {
@@ -127,7 +132,7 @@ export function startGame(players) {
     pendingDraw: 0,
     winnerId: null,
     ranking: [],
-    lastAction: { type: "start", message: "Game started" },
+    lastAction: { id: nextActionId(), type: "start", message: "Game started" },
     mustCallOne: null, // playerId who just went to 1 and must call
     turnDrawTaken: false,
   };
@@ -228,6 +233,7 @@ export function playCard(state, playerId, cardId, chosenColor) {
       state.status = "finished";
       state.winnerId = state.ranking[0];
       state.lastAction = {
+        id: nextActionId(),
         type: "win",
         playerId,
         card: publicCard(card),
@@ -247,6 +253,7 @@ export function playCard(state, playerId, cardId, chosenColor) {
 
   // If next has pending draw, they need to take it (auto optional — we require draw action)
   state.lastAction = {
+    id: nextActionId(),
     type: "play",
     playerId,
     card: publicCard(card),
@@ -282,6 +289,7 @@ export function drawCards(state, playerId) {
     state.turnDrawTaken = false;
     state.currentPlayerIndex = nextIndex(state, pIndex, 1);
     state.lastAction = {
+      id: nextActionId(),
       type: "draw",
       playerId,
       count: drawn.length,
@@ -297,6 +305,7 @@ export function drawCards(state, playerId) {
   const canPlayDrawn = last ? canPlay(last, top, state.currentColor) : false;
 
   state.lastAction = {
+    id: nextActionId(),
     type: "draw",
     playerId,
     count: drawn.length,
@@ -317,6 +326,7 @@ export function passTurn(state, playerId) {
   state.currentPlayerIndex = nextIndex(state, pIndex, 1);
   const player = state.players[pIndex];
   state.lastAction = {
+    id: nextActionId(),
     type: "pass",
     playerId,
     message: `${player.name} passed`,
@@ -331,6 +341,7 @@ export function callOne(state, playerId) {
   player.saidOne = true;
   if (state.mustCallOne === playerId) state.mustCallOne = null;
   state.lastAction = {
+    id: nextActionId(),
     type: "callOne",
     playerId,
     message: `${player.name} called ONE!`,
@@ -352,6 +363,7 @@ export function catchOne(state, catcherId, targetId) {
   if (state.mustCallOne === targetId) state.mustCallOne = null;
 
   state.lastAction = {
+    id: nextActionId(),
     type: "catch",
     playerId: catcherId,
     targetId,
@@ -363,8 +375,11 @@ export function catchOne(state, catcherId, targetId) {
 /** Safe view for a specific player */
 export function serializeFor(state, viewerId, roomMeta = {}) {
   const top = state.discard[state.discard.length - 1] || null;
+  /** @type {Map<string, boolean>|undefined} */
+  const connectedMap = roomMeta.connectedMap;
   return {
-    ...roomMeta,
+    code: roomMeta.code,
+    hostId: roomMeta.hostId,
     status: state.status,
     currentColor: state.currentColor,
     currentPlayerId: state.players[state.currentPlayerIndex]?.id ?? null,
@@ -396,6 +411,7 @@ export function serializeFor(state, viewerId, roomMeta = {}) {
       eliminated: p.eliminated,
       isTurn: state.players[state.currentPlayerIndex]?.id === p.id,
       isYou: p.id === viewerId,
+      connected: connectedMap ? connectedMap.get(p.id) !== false : true,
     })),
   };
 }
