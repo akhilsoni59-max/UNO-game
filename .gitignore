@@ -11,5 +11,7 @@ Thumbs.db
 .idea/
 *.local
 .cache/
+__pycache__/
+*.pyc
 
 *.tsbuildinfo

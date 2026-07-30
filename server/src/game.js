@@ -4,6 +4,23 @@ export const COLORS = ["red", "yellow", "green", "blue"];
 export const MAX_PLAYERS = 6;
 export const MIN_PLAYERS = 2;
 export const HAND_SIZE = 7;
+export const ONE_CALL_WINDOW_MS = 3000;
+export const TURN_DURATION_MS = 30000;
+export const DEFAULT_RULES = Object.freeze({
+  stacking: false,
+  jumpIn: false,
+  drawUntilPlayable: false,
+  sevenZero: false,
+});
+
+export function normalizeRules(rules = {}) {
+  return {
+    stacking: !!rules.stacking,
+    jumpIn: !!rules.jumpIn,
+    drawUntilPlayable: !!rules.drawUntilPlayable,
+    sevenZero: !!rules.sevenZero,
+  };
+}
 
 /**
  * @typedef {'red'|'yellow'|'green'|'blue'} Color
@@ -67,6 +84,12 @@ export function canPlay(card, top, currentColor) {
   return false;
 }
 
+export function canPlayWild4(hand, cardId, currentColor) {
+  return !hand.some(
+    (card) => card.id !== cardId && !isWild(card) && card.color === currentColor
+  );
+}
+
 function drawFromDeck(state, n) {
   const drawn = [];
   for (let i = 0; i < n; i++) {
@@ -98,11 +121,35 @@ function publicCard(card) {
   return card;
 }
 
+function resetTurnClock(state) {
+  state.turnDeadline = Date.now() + TURN_DURATION_MS;
+}
+
+function setLastAction(state, action) {
+  const complete = { id: nextActionId(), time: Date.now(), ...action };
+  state.lastAction = complete;
+  state.actionLog.push(complete);
+  if (state.actionLog.length > 24) state.actionLog.splice(0, state.actionLog.length - 24);
+}
+
+function sameCardFace(a, b) {
+  if (!a || !b || a.type !== b.type || a.color !== b.color) return false;
+  return a.type !== "number" || a.value === b.value;
+}
+
+function canStackPenalty(card, top, rules) {
+  if (!rules.stacking || !top) return false;
+  if (top.type === "draw2") return card.type === "draw2";
+  if (top.type === "wild4") return card.type === "wild4";
+  return false;
+}
+
 /**
  * Create initial in-progress game state.
  * @param {{ id: string, name: string }[]} players
  */
-export function startGame(players) {
+export function startGame(players, requestedRules = DEFAULT_RULES) {
+  const rules = normalizeRules(requestedRules);
   let deck = createDeck();
   const hands = players.map(() => {
     const hand = deck.splice(0, HAND_SIZE);
@@ -132,10 +179,18 @@ export function startGame(players) {
     pendingDraw: 0,
     winnerId: null,
     ranking: [],
-    lastAction: { id: nextActionId(), type: "start", message: "Game started" },
+    lastAction: null,
+    actionLog: [],
+    rules,
     mustCallOne: null, // playerId who just went to 1 and must call
+    oneCallDeadlines: {},
     turnDrawTaken: false,
+    turnDrawnCardId: null,
+    turnDeadline: Date.now() + TURN_DURATION_MS,
+    turnDurationMs: TURN_DURATION_MS,
   };
+
+  setLastAction(state, { type: "start", message: "Game started" });
 
   // Apply start action effects lightly
   if (top.type === "reverse") {
@@ -152,18 +207,34 @@ export function startGame(players) {
 export function getPlayableCards(state, playerId) {
   const player = state.players.find((p) => p.id === playerId);
   if (!player) return [];
-  if (state.players[state.currentPlayerIndex]?.id !== playerId) return [];
   const top = state.discard[state.discard.length - 1];
-  return player.hand.filter((c) => canPlay(c, top, state.currentColor));
+  const isCurrent = state.players[state.currentPlayerIndex]?.id === playerId;
+  if (!isCurrent && !state.rules.jumpIn) return [];
+  if (!isCurrent) {
+    return player.hand.filter((card) => sameCardFace(card, top));
+  }
+  if (state.pendingDraw > 0) {
+    return player.hand.filter((card) => {
+      if (!canStackPenalty(card, top, state.rules)) return false;
+      return card.type !== "wild4" || canPlayWild4(player.hand, card.id, state.currentColor);
+    });
+  }
+  return player.hand.filter((card) => {
+    if (state.turnDrawTaken && card.id !== state.turnDrawnCardId) return false;
+    if (card.type === "wild4" && !canPlayWild4(player.hand, card.id, state.currentColor)) {
+      return false;
+    }
+    return canPlay(card, top, state.currentColor);
+  });
 }
 
 /**
  * Apply a play. Returns { ok, error?, events? }
  */
-export function playCard(state, playerId, cardId, chosenColor) {
+export function playCard(state, playerId, cardId, chosenColor, targetId) {
   if (state.status !== "playing") return { ok: false, error: "Game not active" };
   const pIndex = state.players.findIndex((p) => p.id === playerId);
-  if (pIndex !== state.currentPlayerIndex) return { ok: false, error: "Not your turn" };
+  if (pIndex < 0) return { ok: false, error: "Player not found" };
 
   const player = state.players[pIndex];
   const cardIndex = player.hand.findIndex((c) => c.id === cardId);
@@ -171,14 +242,37 @@ export function playCard(state, playerId, cardId, chosenColor) {
 
   const card = player.hand[cardIndex];
   const top = state.discard[state.discard.length - 1];
+  const isJumpIn = pIndex !== state.currentPlayerIndex;
+
+  if (isJumpIn) {
+    if (!state.rules.jumpIn) return { ok: false, error: "Not your turn" };
+    if (state.pendingDraw > 0 || !sameCardFace(card, top)) {
+      return { ok: false, error: "Jump-in requires an identical card" };
+    }
+  }
 
   // If there is pending draw stack, only draw2/wild4 that stacks — we keep simple: must draw first
   if (state.pendingDraw > 0) {
-    return { ok: false, error: "You must draw pending cards first" };
+    if (!canStackPenalty(card, top, state.rules)) {
+      return {
+        ok: false,
+        error: state.rules.stacking
+          ? "Stack the same penalty card or draw the total"
+          : "You must draw pending cards first",
+      };
+    }
   }
 
-  if (!canPlay(card, top, state.currentColor)) {
+  if (!isJumpIn && state.pendingDraw === 0 && !canPlay(card, top, state.currentColor)) {
     return { ok: false, error: "Illegal play" };
+  }
+
+  if (!isJumpIn && state.turnDrawTaken && card.id !== state.turnDrawnCardId) {
+    return { ok: false, error: "After drawing, only the drawn card may be played" };
+  }
+
+  if (card.type === "wild4" && !canPlayWild4(player.hand, card.id, state.currentColor)) {
+    return { ok: false, error: "Wild +4 is only legal when you have no card matching the active color" };
   }
 
   if (isWild(card)) {
@@ -187,9 +281,20 @@ export function playCard(state, playerId, cardId, chosenColor) {
     }
   }
 
+  let swapTarget = null;
+  if (state.rules.sevenZero && card.type === "number" && card.value === 7) {
+    swapTarget = state.players.find(
+      (entry) => entry.id === targetId && entry.id !== playerId && !entry.eliminated
+    );
+    if (!swapTarget) {
+      return { ok: false, error: "Choose a player to swap hands with" };
+    }
+  }
+
   player.hand.splice(cardIndex, 1);
   state.discard.push(card);
   state.turnDrawTaken = false;
+  state.turnDrawnCardId = null;
 
   if (isWild(card)) {
     state.currentColor = chosenColor;
@@ -197,18 +302,31 @@ export function playCard(state, playerId, cardId, chosenColor) {
     state.currentColor = card.color;
   }
 
+  if (state.rules.sevenZero && card.type === "number" && card.value === 0) {
+    const hands = state.players.map((entry) => entry.hand);
+    for (let index = 0; index < state.players.length; index += 1) {
+      const source =
+        (index - state.direction + state.players.length) % state.players.length;
+      state.players[index].hand = hands[source];
+    }
+  } else if (state.rules.sevenZero && card.type === "number" && card.value === 7) {
+    const held = player.hand;
+    player.hand = swapTarget.hand;
+    swapTarget.hand = held;
+  }
+
   // One-card call tracking
   if (player.hand.length === 1) {
     player.saidOne = false;
     state.mustCallOne = playerId;
+    state.oneCallDeadlines[playerId] = Date.now() + ONE_CALL_WINDOW_MS;
   } else {
     if (player.hand.length !== 1) player.saidOne = false;
     if (state.mustCallOne === playerId) state.mustCallOne = null;
+    delete state.oneCallDeadlines[playerId];
   }
 
   let skipNext = false;
-  let extraSkip = 0;
-
   if (card.type === "skip") {
     skipNext = true;
   } else if (card.type === "reverse") {
@@ -217,10 +335,8 @@ export function playCard(state, playerId, cardId, chosenColor) {
     if (active === 2) skipNext = true; // reverse acts as skip in 2p
   } else if (card.type === "draw2") {
     state.pendingDraw += 2;
-    skipNext = true;
   } else if (card.type === "wild4") {
     state.pendingDraw += 4;
-    skipNext = true;
   }
 
   // Win check
@@ -232,13 +348,12 @@ export function playCard(state, playerId, cardId, chosenColor) {
       if (remaining[0]) state.ranking.push(remaining[0].id);
       state.status = "finished";
       state.winnerId = state.ranking[0];
-      state.lastAction = {
-        id: nextActionId(),
+      setLastAction(state, {
         type: "win",
         playerId,
         card: publicCard(card),
         message: `${player.name} wins!`,
-      };
+      });
       return { ok: true };
     }
     // continue without this player
@@ -250,16 +365,17 @@ export function playCard(state, playerId, cardId, chosenColor) {
   // Advance turn
   const steps = skipNext ? 2 : 1;
   state.currentPlayerIndex = nextIndex(state, pIndex, steps);
+  resetTurnClock(state);
 
   // If next has pending draw, they need to take it (auto optional — we require draw action)
-  state.lastAction = {
-    id: nextActionId(),
+  setLastAction(state, {
     type: "play",
     playerId,
     card: publicCard(card),
     color: state.currentColor,
-    message: `${player.name} played a card`,
-  };
+    jumpIn: isJumpIn,
+    message: isJumpIn ? `${player.name} jumped in!` : `${player.name} played a card`,
+  });
 
   return { ok: true };
 }
@@ -271,30 +387,44 @@ export function drawCards(state, playerId) {
 
   const player = state.players[pIndex];
   const amount = state.pendingDraw > 0 ? state.pendingDraw : 1;
+  const wasPenalty = state.pendingDraw > 0;
 
   if (state.pendingDraw === 0 && state.turnDrawTaken) {
     return { ok: false, error: "Already drew — pass or play" };
   }
 
   const drawn = drawFromDeck(state, amount);
+  if (!wasPenalty && state.rules.drawUntilPlayable) {
+    const top = state.discard[state.discard.length - 1];
+    while (
+      drawn.length > 0 &&
+      !canPlay(drawn[drawn.length - 1], top, state.currentColor) &&
+      state.deck.length + state.discard.length > 1
+    ) {
+      const next = drawFromDeck(state, 1);
+      if (!next.length) break;
+      drawn.push(...next);
+    }
+  }
   player.hand.push(...drawn);
   player.saidOne = false;
   if (state.mustCallOne === playerId) state.mustCallOne = null;
+  delete state.oneCallDeadlines[playerId];
 
-  const wasPenalty = state.pendingDraw > 0;
   state.pendingDraw = 0;
 
   if (wasPenalty) {
     // After taking penalty, turn ends
     state.turnDrawTaken = false;
+    state.turnDrawnCardId = null;
     state.currentPlayerIndex = nextIndex(state, pIndex, 1);
-    state.lastAction = {
-      id: nextActionId(),
+    resetTurnClock(state);
+    setLastAction(state, {
       type: "draw",
       playerId,
       count: drawn.length,
       message: `${player.name} drew ${drawn.length} card(s)`,
-    };
+    });
     return { ok: true, drawnCount: drawn.length, endTurn: true };
   }
 
@@ -302,15 +432,18 @@ export function drawCards(state, playerId) {
   state.turnDrawTaken = true;
   const top = state.discard[state.discard.length - 1];
   const last = drawn[drawn.length - 1];
+  state.turnDrawnCardId = last?.id ?? null;
   const canPlayDrawn = last ? canPlay(last, top, state.currentColor) : false;
 
-  state.lastAction = {
-    id: nextActionId(),
+  setLastAction(state, {
     type: "draw",
     playerId,
     count: drawn.length,
-    message: `${player.name} drew a card`,
-  };
+    message:
+      drawn.length === 1
+        ? `${player.name} drew a card`
+        : `${player.name} drew ${drawn.length} cards`,
+  });
 
   return { ok: true, drawnCount: drawn.length, endTurn: false, canPlayDrawn, drawnId: last?.id };
 }
@@ -323,14 +456,15 @@ export function passTurn(state, playerId) {
   if (state.pendingDraw > 0) return { ok: false, error: "Must draw pending cards" };
 
   state.turnDrawTaken = false;
+  state.turnDrawnCardId = null;
   state.currentPlayerIndex = nextIndex(state, pIndex, 1);
+  resetTurnClock(state);
   const player = state.players[pIndex];
-  state.lastAction = {
-    id: nextActionId(),
+  setLastAction(state, {
     type: "pass",
     playerId,
     message: `${player.name} passed`,
-  };
+  });
   return { ok: true };
 }
 
@@ -338,14 +472,15 @@ export function callOne(state, playerId) {
   const player = state.players.find((p) => p.id === playerId);
   if (!player) return { ok: false, error: "Player not found" };
   if (player.hand.length !== 1) return { ok: false, error: "You need exactly one card" };
+  if (!state.oneCallDeadlines[playerId]) return { ok: false, error: "The call window is closed" };
   player.saidOne = true;
   if (state.mustCallOne === playerId) state.mustCallOne = null;
-  state.lastAction = {
-    id: nextActionId(),
+  delete state.oneCallDeadlines[playerId];
+  setLastAction(state, {
     type: "callOne",
     playerId,
     message: `${player.name} called ONE!`,
-  };
+  });
   return { ok: true };
 }
 
@@ -361,15 +496,43 @@ export function catchOne(state, catcherId, targetId) {
   target.hand.push(...penalty);
   target.saidOne = false;
   if (state.mustCallOne === targetId) state.mustCallOne = null;
+  delete state.oneCallDeadlines[targetId];
 
-  state.lastAction = {
-    id: nextActionId(),
+  setLastAction(state, {
     type: "catch",
     playerId: catcherId,
     targetId,
     message: `${catcher.name} caught ${target.name}! +2 cards`,
-  };
+  });
   return { ok: true };
+}
+
+export function applyMissedOnePenalty(state, playerId, now = Date.now()) {
+  if (state.status !== "playing") return { ok: false, error: "Game not active" };
+  const player = state.players.find((p) => p.id === playerId);
+  if (!player) return { ok: false, error: "Player not found" };
+  const deadline = state.oneCallDeadlines[playerId];
+  if (!deadline) return { ok: false, error: "No pending 1 call" };
+  if (now < deadline) return { ok: false, error: "Call window is still open" };
+  if (player.hand.length !== 1 || player.saidOne) {
+    delete state.oneCallDeadlines[playerId];
+    if (state.mustCallOne === playerId) state.mustCallOne = null;
+    return { ok: false, error: "Penalty no longer applies" };
+  }
+
+  const penalty = drawFromDeck(state, 2);
+  player.hand.push(...penalty);
+  player.saidOne = false;
+  delete state.oneCallDeadlines[playerId];
+  if (state.mustCallOne === playerId) state.mustCallOne = null;
+  setLastAction(state, {
+    type: "draw",
+    playerId,
+    count: penalty.length,
+    reason: "missedOne",
+    message: `${player.name} missed the 1 call and drew 2 cards`,
+  });
+  return { ok: true, drawnCount: penalty.length };
 }
 
 /** Safe view for a specific player */
@@ -392,6 +555,15 @@ export function serializeFor(state, viewerId, roomMeta = {}) {
     discardCount: state.discard.length,
     deckCount: state.deck.length,
     turnDrawTaken: state.players[state.currentPlayerIndex]?.id === viewerId ? state.turnDrawTaken : false,
+    drawnCardId:
+      state.players[state.currentPlayerIndex]?.id === viewerId ? state.turnDrawnCardId : null,
+    oneCallDeadline: state.oneCallDeadlines[viewerId] ?? null,
+    turnDeadline: state.turnDeadline,
+    turnDurationMs: state.turnDurationMs,
+    rules: state.rules,
+    actionLog: state.actionLog,
+    rematchVotes: Array.isArray(roomMeta.rematchVotes) ? roomMeta.rematchVotes : [],
+    chat: Array.isArray(roomMeta.chat) ? roomMeta.chat : [],
     you: (() => {
       const me = state.players.find((p) => p.id === viewerId);
       if (!me) return null;
@@ -411,6 +583,7 @@ export function serializeFor(state, viewerId, roomMeta = {}) {
       eliminated: p.eliminated,
       isTurn: state.players[state.currentPlayerIndex]?.id === p.id,
       isYou: p.id === viewerId,
+      isBot: !!roomMeta.botIds?.has(p.id),
       connected: connectedMap ? connectedMap.get(p.id) !== false : true,
     })),
   };

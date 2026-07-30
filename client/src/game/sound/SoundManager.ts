@@ -26,9 +26,16 @@ interface Prefs {
   sfx: number;
   music: number;
   muted: boolean;
+  haptics: boolean;
 }
 
-const defaultPrefs: Prefs = { master: 0.7, sfx: 0.85, music: 0.4, muted: false };
+const defaultPrefs: Prefs = {
+  master: 0.7,
+  sfx: 0.85,
+  music: 0.4,
+  muted: false,
+  haptics: true,
+};
 
 function loadPrefs(): Prefs {
   try {
@@ -52,6 +59,19 @@ class SoundManager {
   setPrefs(partial: Partial<Prefs>) {
     this.prefs = { ...this.prefs, ...partial };
     localStorage.setItem(PREF_KEY, JSON.stringify(this.prefs));
+  }
+
+  haptic(kind: "tap" | "success" | "error" | "penalty" = "tap") {
+    if (!this.prefs.haptics || typeof navigator === "undefined" || !navigator.vibrate) return;
+    const pattern =
+      kind === "success"
+        ? [18, 35, 28]
+        : kind === "error"
+          ? [35, 28, 35]
+          : kind === "penalty"
+            ? [55, 35, 55]
+            : 12;
+    navigator.vibrate(pattern);
   }
 
   async unlock() {
@@ -146,6 +166,7 @@ class SoundManager {
         this.tone(540, 0.1, "sine", 0.04);
         break;
       case "invalid":
+        this.haptic("error");
         this.tone(160, 0.12, "sawtooth", 0.04, 100);
         break;
       case "turn":
@@ -160,6 +181,7 @@ class SoundManager {
         this.tone(200, 0.1, "sine", 0.04);
         break;
       case "penalty":
+        this.haptic("penalty");
         this.tone(140, 0.18, "sawtooth", 0.04, 90);
         break;
       case "color":
@@ -167,6 +189,7 @@ class SoundManager {
         this.tone(600, 0.1, "sine", 0.035);
         break;
       case "win":
+        this.haptic("success");
         [523, 659, 784, 1046].forEach((f, i) => {
           setTimeout(() => this.tone(f, 0.2, "triangle", 0.05), i * 90);
         });

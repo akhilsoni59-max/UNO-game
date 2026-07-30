@@ -11,6 +11,8 @@ interface Props {
   /** Deterministic salt for stack offsets */
   salt?: string;
   hidden?: boolean;
+  dragActive?: boolean;
+  onDropCard?: () => void;
 }
 
 function rotFromId(id: string, i: number) {
@@ -19,20 +21,26 @@ function rotFromId(id: string, i: number) {
   return ((h % 17) - 8) * 0.9;
 }
 
-export function DiscardPile({ pos, top, cardW, cardH, salt = "d", hidden }: Props) {
+export function DiscardPile({
+  pos,
+  top,
+  cardW,
+  cardH,
+  salt = "d",
+  hidden,
+  dragActive,
+  onDropCard,
+}: Props) {
   const stack = useMemo(() => {
     if (!top) return [] as { id: string; rot: number; dx: number; dy: number }[];
-    // Fake 2 under-cards for depth (visual only)
     return [
-      { id: `${salt}-2`, rot: rotFromId(top.id, 2), dx: -4, dy: 3 },
-      { id: `${salt}-1`, rot: rotFromId(top.id, 1), dx: 3, dy: 2 },
       { id: top.id, rot: rotFromId(top.id, 0), dx: 0, dy: 0 },
     ];
   }, [top, salt]);
 
   return (
     <div
-      className="gc-discard"
+      className={`gc-discard ${dragActive ? "is-drop-target" : ""}`}
       style={{
         position: "absolute",
         left: pos.x,
@@ -43,7 +51,18 @@ export function DiscardPile({ pos, top, cardW, cardH, salt = "d", hidden }: Prop
         zIndex: 8,
       }}
       aria-label={top ? `Discard ${top.color} ${top.type}` : "Empty discard"}
+      onDragOver={(event) => {
+        if (!dragActive) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+      }}
+      onDrop={(event) => {
+        if (!dragActive) return;
+        event.preventDefault();
+        onDropCard?.();
+      }}
     >
+      <span className="gc-pile-plinth" aria-hidden="true" />
       {stack.map((s, i) => (
         <div
           key={s.id}
@@ -63,6 +82,7 @@ export function DiscardPile({ pos, top, cardW, cardH, salt = "d", hidden }: Prop
           )}
         </div>
       ))}
+      <span className="gc-pile-label">PLAY</span>
     </div>
   );
 }

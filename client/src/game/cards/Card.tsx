@@ -1,8 +1,6 @@
 import type { CSSProperties } from "react";
 import type { Card as CardModel } from "../../types";
 import { gameTokens } from "../tokens/gameTokens";
-import { CardBack } from "./CardBack";
-import { CardFace } from "./CardFace";
 
 export type CardSize = "sm" | "md" | "lg" | "hero";
 
@@ -12,6 +10,18 @@ const SIZE: Record<CardSize, { w: number; h: number }> = {
   lg: { w: gameTokens.cardW, h: gameTokens.cardH },
   hero: { w: 128, h: 183 },
 };
+
+const RASTER_ROOT = "/assets/raster-cards";
+
+function rasterCardSrc(card?: CardModel | null, faceDown?: boolean) {
+  if (faceDown || !card) return `${RASTER_ROOT}/back.png`;
+  if (card.type === "wild4") return `${RASTER_ROOT}/wild4.png`;
+  if (card.type === "wild") return `${RASTER_ROOT}/wild.png`;
+  if (card.type === "number") {
+    return `${RASTER_ROOT}/${card.color}_number_${card.value ?? 0}.png`;
+  }
+  return `${RASTER_ROOT}/${card.color}_${card.type}.png`;
+}
 
 export interface CardProps {
   card?: CardModel | null;
@@ -30,6 +40,9 @@ export interface CardProps {
   onPointerLeave?: () => void;
   tabIndex?: number;
   disabled?: boolean;
+  draggable?: boolean;
+  onDragStart?: () => void;
+  onDragEnd?: () => void;
 }
 
 export function CardView({
@@ -49,6 +62,9 @@ export function CardView({
   onPointerLeave,
   tabIndex,
   disabled,
+  draggable,
+  onDragStart,
+  onDragEnd,
 }: CardProps) {
   const dims = SIZE[size];
   const w = width ?? dims.w;
@@ -86,6 +102,16 @@ export function CardView({
           : undefined
       }
       aria-disabled={disabled || undefined}
+      draggable={draggable}
+      onDragStart={(event) => {
+        if (!draggable) {
+          event.preventDefault();
+          return;
+        }
+        event.dataTransfer.effectAllowed = "move";
+        onDragStart?.();
+      }}
+      onDragEnd={onDragEnd}
       aria-label={
         showBack
           ? "Face-down card"
@@ -95,7 +121,13 @@ export function CardView({
       }
     >
       <div className="gc-card-inner">
-        {showBack ? <CardBack /> : card ? <CardFace card={card} /> : <CardBack />}
+        <img
+          className="gc-card-raster"
+          src={rasterCardSrc(card, showBack)}
+          alt=""
+          draggable={false}
+          decoding="async"
+        />
       </div>
     </div>
   );

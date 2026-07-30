@@ -1,6 +1,16 @@
 import { gameTokens } from "../tokens/gameTokens";
 
-export type SeatRole = "local" | "leftLower" | "leftUpper" | "top" | "rightUpper" | "rightLower";
+export type SeatRole =
+  | "local"
+  | "left"
+  | "leftLower"
+  | "leftUpper"
+  | "top"
+  | "topLeft"
+  | "topRight"
+  | "right"
+  | "rightUpper"
+  | "rightLower";
 
 export interface Point {
   x: number;
@@ -46,20 +56,24 @@ export interface TableLayout {
 
 /** Conceptual normalized anchors (0–1) — refined by aspect & safe areas */
 const SEAT_ANCHORS: Record<SeatRole, { nx: number; ny: number; rot: number; facing: SeatLayout["fanFacing"]; nameSide: SeatLayout["nameSide"] }> = {
-  local: { nx: 0.5, ny: 0.91, rot: 0, facing: "up", nameSide: "above" },
-  leftLower: { nx: 0.11, ny: 0.68, rot: 82, facing: "inward", nameSide: "right" },
-  leftUpper: { nx: 0.15, ny: 0.24, rot: 95, facing: "inward", nameSide: "right" },
-  top: { nx: 0.5, ny: 0.09, rot: 180, facing: "down", nameSide: "below" },
-  rightUpper: { nx: 0.85, ny: 0.24, rot: -95, facing: "inward", nameSide: "left" },
-  rightLower: { nx: 0.89, ny: 0.68, rot: -82, facing: "inward", nameSide: "left" },
+  local: { nx: 0.5, ny: 0.82, rot: 0, facing: "up", nameSide: "above" },
+  left: { nx: 0.09, ny: 0.5, rot: 90, facing: "inward", nameSide: "right" },
+  leftLower: { nx: 0.09, ny: 0.7, rot: 90, facing: "inward", nameSide: "right" },
+  leftUpper: { nx: 0.09, ny: 0.3, rot: 90, facing: "inward", nameSide: "right" },
+  top: { nx: 0.5, ny: 0.12, rot: 180, facing: "down", nameSide: "below" },
+  topLeft: { nx: 0.31, ny: 0.13, rot: 180, facing: "down", nameSide: "below" },
+  topRight: { nx: 0.69, ny: 0.13, rot: 180, facing: "down", nameSide: "below" },
+  right: { nx: 0.91, ny: 0.5, rot: -90, facing: "inward", nameSide: "left" },
+  rightUpper: { nx: 0.91, ny: 0.3, rot: -90, facing: "inward", nameSide: "left" },
+  rightLower: { nx: 0.91, ny: 0.7, rot: -90, facing: "inward", nameSide: "left" },
 };
 
 const ROLE_ORDER_FOR_N: Record<number, SeatRole[]> = {
   1: ["local"],
   2: ["local", "top"],
-  3: ["local", "leftUpper", "rightUpper"],
-  4: ["local", "leftLower", "top", "rightLower"],
-  5: ["local", "leftLower", "leftUpper", "rightUpper", "rightLower"],
+  3: ["local", "topLeft", "topRight"],
+  4: ["local", "left", "top", "right"],
+  5: ["local", "left", "topLeft", "topRight", "right"],
   6: ["local", "leftLower", "leftUpper", "top", "rightUpper", "rightLower"],
 };
 
@@ -102,22 +116,22 @@ export function computeTableLayout(
   const logicalH = 1000;
   const pad = 8;
   const availW = Math.max(320, viewportW - pad * 2);
-  const availH = Math.max(400, viewportH - pad * 2);
+  const availH = Math.max(280, viewportH - pad * 2);
 
   let scale = Math.min(availW / logicalW, availH / logicalH);
-  scale = Math.min(1.15, Math.max(0.48, scale));
+  scale = Math.min(1.15, Math.max(0.3, scale));
 
   const stageW = logicalW * scale;
   const stageH = logicalH * scale;
 
-  const center = { x: stageW / 2, y: stageH * 0.46 };
-  const tableRx = stageW * 0.38;
-  const tableRy = stageH * 0.32;
+  const center = { x: stageW / 2, y: stageH * 0.5 };
+  const tableRx = stageW * 0.48;
+  const tableRy = stageH * 0.46;
 
-  const deck = { x: center.x - 78 * scale, y: center.y };
-  const discard = { x: center.x + 78 * scale, y: center.y };
-  const direction = { x: center.x, y: center.y - 88 * scale };
-  const colorIndicator = { x: center.x, y: center.y + 92 * scale };
+  const deck = { x: center.x - 66 * scale, y: center.y };
+  const discard = { x: center.x + 66 * scale, y: center.y };
+  const colorIndicator = { x: center.x + 180 * scale, y: center.y - 30 * scale };
+  const direction = { x: center.x + 180 * scale, y: center.y + 34 * scale };
 
   // Local card scale
   let cardScale = scale;
@@ -137,8 +151,13 @@ export function computeTableLayout(
     const a = SEAT_ANCHORS[role];
     // Slight inset on very short heights
     let ny = a.ny;
-    if (viewportH < 700 && role === "local") ny = 0.93;
-    if (viewportH < 700 && role === "top") ny = 0.07;
+    if (viewportH < 700 && role === "local") ny = 0.84;
+    if (
+      viewportH < 700 &&
+      (role === "top" || role === "topLeft" || role === "topRight")
+    ) {
+      ny = viewportH < 450 ? 0.28 : 0.16;
+    }
 
     return {
       role,
@@ -146,12 +165,12 @@ export function computeTableLayout(
       handRotation: a.rot,
       fanFacing: a.facing,
       cardScale: role === "local" ? cardScale : opponentScale * scale * (1 / scale),
-      maxVisibleCards: role === "local" ? 20 : narrow ? 4 : 6,
+      maxVisibleCards: role === "local" ? 20 : 12,
       nameSide: a.nameSide,
     };
   });
 
-  const fanWidth = Math.min(stageW * 0.72, 720 * scale);
+  const fanWidth = Math.min(stageW * 0.58, 560 * scale);
 
   return {
     stageW,

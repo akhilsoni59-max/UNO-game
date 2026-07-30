@@ -14,6 +14,7 @@ export interface LobbyPlayer {
   connected: boolean;
   isHost: boolean;
   isYou: boolean;
+  isBot?: boolean;
 }
 
 export interface GamePlayer {
@@ -25,6 +26,36 @@ export interface GamePlayer {
   isTurn: boolean;
   isYou: boolean;
   connected?: boolean;
+  isBot?: boolean;
+}
+
+export interface RuleSettings {
+  stacking: boolean;
+  jumpIn: boolean;
+  drawUntilPlayable: boolean;
+  sevenZero: boolean;
+}
+
+export interface GameAction {
+  id?: string;
+  type: string;
+  message?: string;
+  playerId?: string;
+  targetId?: string;
+  card?: Card;
+  color?: string;
+  count?: number;
+  reason?: string;
+  jumpIn?: boolean;
+  time?: number;
+}
+
+export interface ChatMessage {
+  id: string;
+  playerId: string;
+  name: string;
+  text: string;
+  time: number;
 }
 
 export interface LobbyState {
@@ -34,6 +65,7 @@ export interface LobbyState {
   players: LobbyPlayer[];
   maxPlayers: number;
   minPlayers: number;
+  rules: RuleSettings;
 }
 
 export interface GameState {
@@ -46,20 +78,19 @@ export interface GameState {
   pendingDraw: number;
   winnerId: string | null;
   ranking: string[];
-  lastAction: {
-    id?: string;
-    type: string;
-    message?: string;
-    playerId?: string;
-    targetId?: string;
-    card?: Card;
-    color?: string;
-    count?: number;
-  } | null;
+  lastAction: GameAction | null;
+  actionLog: GameAction[];
   topCard: Card | null;
   discardCount: number;
   deckCount: number;
   turnDrawTaken: boolean;
+  drawnCardId: string | null;
+  oneCallDeadline: number | null;
+  turnDeadline: number;
+  turnDurationMs: number;
+  rules: RuleSettings;
+  rematchVotes: string[];
+  chat: ChatMessage[];
   you: {
     id: string;
     name: string;

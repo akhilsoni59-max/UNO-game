@@ -5,12 +5,12 @@
 
 export const gameTokens = {
   // Environment
-  bgDeep: "#070b12",
-  bgMid: "#0c1220",
-  tableSurface: "#142033",
-  tableSurfaceHi: "#1a2a42",
-  tableRim: "#2a3d5c",
-  tableRimGold: "rgba(196, 168, 110, 0.35)",
+  bgDeep: "#001827",
+  bgMid: "#00395c",
+  tableSurface: "#00699d",
+  tableSurfaceHi: "#0089c3",
+  tableRim: "#00527d",
+  tableRimGold: "rgba(112, 218, 255, 0.28)",
   vignette: "rgba(0, 0, 0, 0.55)",
   ambientGlow: "rgba(90, 140, 200, 0.08)",
 
@@ -21,15 +21,15 @@ export const gameTokens = {
   textOnDark: "#0a0e14",
 
   // Four suit colors (restrained, not neon)
-  colorRed: "#c93c3c",
-  colorRedDeep: "#8f2424",
-  colorYellow: "#d4a824",
-  colorYellowDeep: "#9a7610",
-  colorGreen: "#2f9e5f",
-  colorGreenDeep: "#1d6b3f",
-  colorBlue: "#2f6fbf",
-  colorBlueDeep: "#1a4a8a",
-  colorBlack: "#1a1f2a",
+  colorRed: "#ff1728",
+  colorRedDeep: "#d60019",
+  colorYellow: "#ffc515",
+  colorYellowDeep: "#e69a00",
+  colorGreen: "#2fd000",
+  colorGreenDeep: "#159800",
+  colorBlue: "#0798d8",
+  colorBlueDeep: "#006caf",
+  colorBlack: "#101114",
 
   // Interaction
   playableGlow: "rgba(232, 214, 160, 0.45)",
@@ -46,9 +46,9 @@ export const gameTokens = {
   cardEdge: "rgba(0, 0, 0, 0.55)",
   cardInnerHi: "rgba(255, 255, 255, 0.22)",
   cardFaceWhite: "#f4f1ea",
-  cardBackBase: "#121826",
-  cardBackPattern: "#1c2740",
-  cardBackEmblem: "#c4a86e",
+  cardBackBase: "#111215",
+  cardBackPattern: "#1c1e22",
+  cardBackEmblem: "#f4f5f6",
 
   // Chrome UI
   modalBg: "rgba(10, 14, 22, 0.92)",
@@ -57,12 +57,12 @@ export const gameTokens = {
   hudPillBg: "rgba(8, 12, 20, 0.72)",
 
   // Card geometry (logical px)
-  cardW: 112,
+  cardW: 104,
   cardH: 160,
   cardRadiusRatio: 0.1,
-  minLocalCardW: 72,
-  opponentCardW: 42,
-  opponentCardH: 60,
+  minLocalCardW: 54,
+  opponentCardW: 47,
+  opponentCardH: 72,
 } as const;
 
 export type GameColor = "red" | "yellow" | "green" | "blue";

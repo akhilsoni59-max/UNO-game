@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import type { AppState, LobbyState, GameState } from "../types";
 import { socket } from "../socket";
 import { getPlayerToken, getSavedName, rememberRoom, saveName as persistName } from "../identity";
@@ -8,6 +8,7 @@ import { PremiumGameTable } from "../game/components/PremiumGameTable";
 
 export function Room() {
   const { code } = useParams();
+  const navigate = useNavigate();
   const [state, setState] = useState<AppState>(null);
   const [error, setError] = useState("");
   const [joining, setJoining] = useState(true);
@@ -26,6 +27,18 @@ export function Room() {
       socket.off("state", onState);
     };
   }, []);
+
+  useEffect(() => {
+    function removed() {
+      rememberRoom(null);
+      setState(null);
+      navigate("/", { replace: true });
+    }
+    socket.on("removed_from_room", removed);
+    return () => {
+      socket.off("removed_from_room", removed);
+    };
+  }, [navigate]);
 
   const join = useCallback(
     (n: string) => {

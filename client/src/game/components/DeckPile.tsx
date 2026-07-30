@@ -30,6 +30,7 @@ export function DeckPile({ pos, count, cardW, cardH, canDraw, onDraw, bounce }: 
       onClick={onDraw}
       aria-label={`Draw pile, ${count} cards`}
     >
+      <span className="gc-pile-plinth" aria-hidden="true" />
       {Array.from({ length: layers }).map((_, i) => (
         <div
           key={i}
@@ -43,6 +44,7 @@ export function DeckPile({ pos, count, cardW, cardH, canDraw, onDraw, bounce }: 
           <CardView faceDown width={cardW} height={cardH} />
         </div>
       ))}
+      <span className="gc-pile-label">{canDraw ? "TAP TO DRAW" : "DRAW"}</span>
       <span className="gc-pile-count">{count}</span>
     </button>
   );

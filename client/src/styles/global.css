@@ -318,7 +318,7 @@ button:disabled {
 }
 
 .lobby-panel {
-  width: min(720px, 100%);
+  width: min(920px, 100%);
   background: var(--panel);
   border: 1px solid var(--stroke);
   border-radius: 28px;
@@ -368,6 +368,7 @@ button:disabled {
 }
 
 .player-chip {
+  position: relative;
   border-radius: 16px;
   padding: 14px;
   background: rgba(255, 255, 255, 0.04);
@@ -401,6 +402,202 @@ button:disabled {
   gap: 10px;
   flex-wrap: wrap;
   align-items: center;
+}
+
+.lobby-eyebrow,
+.lobby-section-heading small {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+.lobby-capacity {
+  display: grid;
+  gap: 4px;
+  text-align: right;
+}
+
+.lobby-capacity strong {
+  color: var(--ink);
+}
+
+.lobby-capacity span,
+.lobby-waiting {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.lobby-section-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.lobby-section-heading h3 {
+  margin: 3px 0 0;
+}
+
+.lobby-section-heading > span {
+  padding: 5px 8px;
+  border: 1px solid rgba(93, 217, 239, 0.32);
+  border-radius: 4px;
+  color: #9de9f4;
+  font-size: 0.65rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.player-chip.is-empty {
+  opacity: 0.42;
+  border-style: dashed;
+}
+
+.player-bot-badge {
+  margin-left: 7px;
+  padding: 2px 5px;
+  border: 1px solid rgba(93, 217, 239, 0.36);
+  border-radius: 3px;
+  color: #9de9f4;
+  font-size: 0.55rem;
+  letter-spacing: 0.08em;
+  vertical-align: 2px;
+}
+
+.player-remove {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.player-remove:hover,
+.player-remove:focus-visible {
+  background: rgba(242, 94, 109, 0.13);
+  color: #ff9ba5;
+  outline: 2px solid rgba(242, 94, 109, 0.32);
+}
+
+.lobby-rules {
+  margin: 4px 0 22px;
+  padding: 18px;
+  border: 1px solid rgba(133, 216, 232, 0.16);
+  border-radius: 14px;
+  background: rgba(2, 17, 27, 0.28);
+}
+
+.lobby-rule-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.lobby-rule-toggle {
+  min-height: 64px;
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(150, 205, 216, 0.14);
+  border-radius: 8px;
+  background: rgba(4, 19, 29, 0.54);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, transform 120ms ease;
+}
+
+.lobby-rule-toggle:not(:disabled):active {
+  transform: scale(0.985);
+}
+
+.lobby-rule-toggle:disabled {
+  cursor: default;
+  opacity: 0.66;
+}
+
+.lobby-rule-toggle > i {
+  position: relative;
+  width: 28px;
+  height: 16px;
+  border-radius: 999px;
+  background: #263640;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+}
+
+.lobby-rule-toggle > i::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #90a1a8;
+  transition: transform 160ms ease, background 160ms ease;
+}
+
+.lobby-rule-toggle.is-active {
+  border-color: rgba(93, 217, 239, 0.46);
+  background: rgba(23, 103, 122, 0.18);
+}
+
+.lobby-rule-toggle.is-active > i {
+  background: #17677a;
+}
+
+.lobby-rule-toggle.is-active > i::after {
+  transform: translateX(12px);
+  background: #b9f4fa;
+}
+
+.lobby-rule-toggle span {
+  display: grid;
+  gap: 3px;
+}
+
+.lobby-rule-toggle strong {
+  font-size: 0.86rem;
+}
+
+.lobby-rule-toggle small,
+.lobby-rule-note {
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+
+.lobby-rule-note {
+  margin: 12px 0 0;
+}
+
+@media (max-width: 620px) {
+  .lobby {
+    padding: 12px;
+  }
+
+  .lobby-panel {
+    padding: 18px;
+    border-radius: 18px;
+  }
+
+  .lobby-rule-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .lobby-capacity {
+    text-align: left;
+  }
 }
 
 /* ===== TABLE ===== */

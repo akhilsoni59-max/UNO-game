@@ -2,7 +2,9 @@
 
 6-player multiplayer color card game with private rooms and shareable join links.
 
-Premium table presentation: original SVG cards, six-seat layout engine, Bézier card-transfer animations, Web Audio SFX, and design tokens. Server remains authoritative for all rules.
+Premium table presentation: high-resolution raster card artwork, six-seat layout
+engine, Bézier card-transfer animations, Web Audio SFX, and design tokens. Server
+remains authoritative for all rules.
 
 ## Features
 
@@ -12,10 +14,12 @@ Premium table presentation: original SVG cards, six-seat layout engine, Bézier 
 - **ONE!** call + catch penalty (+2)
 - **Reconnect** after refresh/disconnect (stable player token)
 - Leave room from lobby or table
-- **Premium game layer**: SVG card faces/backs, seat geometry, draw/play flights, turn FX
+- **Premium game layer**: PNG card faces/backs, seat geometry, draw/play flights, turn FX
 - Color picker for wilds, rematch back to lobby
 - Sound on/off (synthesized SFX; no copyrighted audio)
 - Debug HUD: add `?debug` to the client URL
+- Development visual-event simulator: open an active room with `?debug`, then
+  use the `DEV` control or press `Alt+V`
 
 ## Quick start
 
