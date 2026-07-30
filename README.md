@@ -44,6 +44,26 @@ npm.cmd run start
 
 Serves the built client from the server on port 3001.
 
+Recommended cloud architecture:
+
+- **Vercel** serves the Vite/React frontend using `vercel.json`.
+- **Railway** (or another persistent container host) runs the authoritative
+  Socket.IO server using the root `Dockerfile` and `railway.json`.
+- **Supabase** stores profiles, operational room snapshots, match history, and
+  leaderboard data. Apply migrations from `supabase/migrations`.
+
+Required production environment variables:
+
+| Host | Variable | Purpose |
+|---|---|---|
+| Railway | `CLIENT_ORIGIN` | Exact Vercel production origin |
+| Railway | `SUPABASE_URL` | Supabase project URL |
+| Railway | `SUPABASE_SERVICE_ROLE_KEY` | Server-only database credential |
+| Vercel | `VITE_SERVER_URL` | Public Railway service URL |
+
+Never add the Supabase service-role key to a Vercel variable prefixed with
+`VITE_`; those values are bundled into browser JavaScript.
+
 ## Smoke test (server logic)
 
 ```bash

@@ -1,4 +1,5 @@
 import { customAlphabet } from "nanoid";
+import { randomUUID } from "crypto";
 import {
   MAX_PLAYERS,
   MIN_PLAYERS,
@@ -198,6 +199,8 @@ export class RoomManager {
     }
 
     room.rematchVotes.clear();
+    room.matchId = randomUUID();
+    room.matchStartedAt = Date.now();
     room.game = startGame(
       room.players.map((p) => ({ id: p.id, name: p.name })),
       room.rules

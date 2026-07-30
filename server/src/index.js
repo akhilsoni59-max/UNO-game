@@ -5,14 +5,45 @@ import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
 import { RoomManager } from "./rooms.js";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import { persistence } from "./persistence.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || "http://localhost:5173";
+const ALLOWED_ORIGINS = new Set(
+  CLIENT_ORIGIN.split(",").map((origin) => origin.trim()).filter(Boolean)
+);
+const ALLOW_VERCEL_PREVIEWS = process.env.ALLOW_VERCEL_PREVIEWS === "true";
+
+function allowOrigin(origin, callback) {
+  if (
+    !origin ||
+    ALLOWED_ORIGINS.has(origin) ||
+    (ALLOW_VERCEL_PREVIEWS && /^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin))
+  ) {
+    callback(null, true);
+    return;
+  }
+  callback(new Error("Origin is not allowed"));
+}
 
 const app = express();
-app.use(cors({ origin: true }));
-app.get("/health", (_req, res) => res.json({ ok: true }));
+app.set("trust proxy", 1);
+app.use(helmet({ crossOriginResourcePolicy: false }));
+app.use(cors({ origin: allowOrigin }));
+app.use(
+  rateLimit({
+    windowMs: 60_000,
+    limit: 180,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+  })
+);
+app.get("/health", (_req, res) =>
+  res.json({ ok: true, database: persistence.status, uptime: Math.round(process.uptime()) })
+);
 
 // Serve built client in production
 const clientDist = path.join(__dirname, "../../client/dist");
@@ -26,7 +57,7 @@ app.get("*", (req, res, next) => {
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
-  cors: { origin: true, methods: ["GET", "POST"] },
+  cors: { origin: allowOrigin, methods: ["GET", "POST"] },
 });
 
 const rooms = new RoomManager();
@@ -155,6 +186,7 @@ function publishRoom(room, sendEffect = false) {
   }
   scheduleTurn(room);
   scheduleBot(room);
+  persistence.syncRoom(room);
 }
 
 io.on("connection", (socket) => {
@@ -199,6 +231,7 @@ io.on("connection", (socket) => {
       const left = rooms.leaveRoom(socket.id, { hard: true });
       joinedCode = null;
       if (left?.room) publishRoom(left.room);
+      if (left?.deleted) persistence.removeRoom(code).catch((error) => console.error("[persistence]", error.message));
       cb?.({ ok: true });
     } catch (e) {
       cb?.({ ok: false, error: e.message || "Failed to leave" });
@@ -303,6 +336,7 @@ io.on("connection", (socket) => {
     const result = rooms.rematch(joinedCode, socket.id);
     if (!result.ok) return cb?.(result);
     if (result.deleted || !result.room) {
+      persistence.removeRoom(joinedCode).catch((error) => console.error("[persistence]", error.message));
       joinedCode = null;
       cb?.({ ok: true, deleted: true });
       return;
